@@ -291,15 +291,12 @@
     color:var(--accent2); font-weight:700; }
   body[data-skin="risonoir"] .poster { background:#3a63d6; box-shadow:none; }
 
-  /* Lost in Frenchlation pill: inked in the opposite tone so it stands apart
-     from the cinemas; pink while it filters. */
-  body[data-skin="riso"] .pill.lifpill { background:#1b1a17; color:#f1ece0; border-color:#1b1a17; }
-  body[data-skin="risonoir"] .pill.lifpill { background:#ece6d6; color:#15131a; border-color:#ece6d6; }
-  body[data-skin] .pill.lifpill:hover { color:var(--accent-text); }
-  /* Ink on the pink (5:1); white on it is only 3.5:1. */
+  /* Lost in Frenchlation pill: looks like a cinema pill until it filters,
+     then takes the logo's turquoise. */
+  /* Ink on the turquoise; white on it would be unreadable. */
   body[data-skin="riso"] .pill.lifpill.on, body[data-skin="riso"] .pill.lifpill.on:hover { color:#1b1a17; }
   body[data-skin="risonoir"] .pill.lifpill.on, body[data-skin="risonoir"] .pill.lifpill.on:hover { color:#15131a; }
-  body[data-skin] .pill.lifpill.on { background:var(--accent); border-color:var(--accent); }
+  body[data-skin] .pill.lifpill.on { background:#32ffff; border-color:var(--fg); }
 
   /* Day labels, the Movies view's dates and cinemas, the side index and
      notes take the skins' mono like every other small label. */
