@@ -164,6 +164,7 @@ COUNTRY_ABBR = {"United Kingdom": "UK"}
 # production year as a string).
 COUNTRY_OVERRIDES = {
     ("la belle et la bête", "1946"): "France",  # AlloCiné lists "Luxembourg, France"
+    ("kyua", "1997"): "Japan",  # Cure; AlloCiné lists "USA"
 }
 
 
