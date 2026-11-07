@@ -61,6 +61,8 @@
   .search:focus { outline:none; border-color:var(--accent); }
 
   .controls { display:flex; flex-direction:column; gap:12px; padding:20px 0 0; }
+  /* The pills stick under the header while the listings scroll beneath them. */
+  .ctlbar { position:sticky; top:var(--hdr,0px); z-index:9; background:var(--bg); padding-bottom:12px; }
   .pillbox, .daybox { display:contents; }
   .pills { display:flex; flex-wrap:wrap; gap:8px 16px; }
   .pill { cursor:pointer; background:none; border:0; padding:0; font:inherit; font-size:13px; color:var(--fg); }
@@ -173,7 +175,7 @@
   #mindex span.no { color:var(--faint); }
   /* Four-digit decades read denser than single letters at the same pitch. */
   #mindex.dec span { line-height:2.3; }
-  .msec { scroll-margin-top:var(--hdr,60px); }
+  .msec { scroll-margin-top:calc(var(--hdr,60px) + var(--ctl,0px)); }
   /* Keep content clear of the strip: --idxw is its measured footprint from the
      viewport's right edge; the centered column's side margin already covers part of it. */
   .wrap.has-idx { padding-right:max(24px, calc(var(--idxw,0px) - max(0px, (100vw - var(--maxw)) / 2))); }
@@ -345,9 +347,9 @@
   </div>
 </div></header>
 
-<div class="wrap">
+<div class="ctlbar"><div class="wrap">
   <div class="controls" id="controls"></div>
-</div>
+</div></div>
 
 <main><div class="wrap" id="view"><div class="note">Loading…</div></div></main>
 
@@ -741,7 +743,6 @@ function renderIndex(){
     last = tk;
     const el = document.querySelector(`.msec[data-ig="${CSS.escape(tk)}"]`);
     if(!el) return;
-    document.documentElement.style.setProperty("--hdr", document.querySelector("header").offsetHeight + "px");
     el.scrollIntoView({block:"start"});
   };
   const end = () => {
@@ -757,6 +758,14 @@ function renderIndex(){
 })();
 
 let _pillSig = null, _daySig = null;
+// The pills stay under the header as the page scrolls: --hdr is the header's height (where they
+// stick) and --ctl theirs, kept current as either changes (search opening, pills wrapping), so
+// index jumps land below both.
+(() => {
+  const hdr = document.querySelector("header"), bar = document.querySelector(".ctlbar"), root = document.documentElement.style;
+  const ro = new ResizeObserver(() => { root.setProperty("--hdr", hdr.offsetHeight + "px"); root.setProperty("--ctl", bar.offsetHeight + "px"); });
+  ro.observe(hdr); ro.observe(bar);
+})();
 function renderControls(){
   const c = document.getElementById("controls");
   const allActive = state.active.size === data.cinemas.length;
