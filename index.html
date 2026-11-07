@@ -163,7 +163,8 @@
 
   /* Movies view side index (like iOS Contacts): tap or drag to jump to a
      letter, or to a decade when sorted by year. */
-  #mindex { position:fixed; right:2px; top:50%; transform:translateY(-50%); z-index:20;
+  /* Centred between the bottom of the header and the bottom of the screen. */
+  #mindex { position:fixed; right:2px; top:calc(50% + var(--hdr,0px) / 2); transform:translateY(-50%); z-index:20;
             display:none; flex-direction:column; align-items:center; padding:6px 3px;
             touch-action:none; user-select:none; -webkit-user-select:none; cursor:pointer; }
   #mindex.on { display:flex; }
@@ -717,7 +718,7 @@ function renderIndex(){
   // Shrink labels so the whole strip fits short viewports.
   const dec = state.movieSort !== "title";
   ix.classList.toggle("dec", dec);
-  ix.style.setProperty("--ifs", Math.min(10.5, (innerHeight - 170) / _movieIndex.length / (dec ? 2.3 : 1.65)) + "px");
+  ix.style.setProperty("--ifs", Math.min(10.5, (innerHeight - document.querySelector("header").offsetHeight - 90) / _movieIndex.length / (dec ? 2.3 : 1.65)) + "px");
   ix.innerHTML = _movieIndex.map(x => {
     return `<span data-k="${esc(x.k)}"${x.has ? "" : ` class="no"`}>${esc(x.k)}</span>`;
   }).join("");
