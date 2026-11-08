@@ -56,7 +56,8 @@
   .sicon svg { width:16px; height:16px; }
   .srch.open .sicon, .srch:not(.open) .search { display:none; }
   .search { width:150px; font:inherit; font-size:13px; color:var(--fg); background:var(--bg);
-            border:1px solid var(--line); border-radius:4px; padding:3px 8px; }
+            border:1px solid var(--line); border-radius:4px; padding:3px 8px;
+            position:relative; top:3px; }  /* on the tabs' lowered text line */
   .search::placeholder { color:var(--muted); }
   .search:focus { outline:none; border-color:var(--accent); }
 
