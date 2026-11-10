@@ -362,7 +362,7 @@
 const WD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 let data = null, inited = false, _dataSig = null;
-const initialState = () => ({ view:"day", active:new Set(), minTime:"", daysActive:new Set(), pillsOpen:false, yearBuckets:new Set(), yearOpen:false, movieSort:"title", tspdtOnly:false, lifOnly:false, daysOpen:false, query:"" });
+const initialState = () => ({ view:"day", active:new Set(), minTime:"", daysActive:new Set(), pillsOpen:false, yearBuckets:new Set(), yearOpen:false, movieSort:"title", tspdtOnly:false, hideWatched:false, watchlistOnly:false, lifOnly:false, daysOpen:false, query:"" });
 const state = initialState();
 // First-load filters that depend on the data: every cinema, the whole week, every decade.
 function resetFilters(){
@@ -460,9 +460,17 @@ function yearInBuckets(y){
   return YEAR_BUCKETS.some(b => state.yearBuckets.has(b.k) && b.test(n));
 }
 
+const lbSlug = lb => (/\/film\/([^/]+)\//.exec(lb || "") || [])[1];
 function tspdtRank(lb){
-  const m = /\/film\/([^/]+)\//.exec(lb || "");
-  return m ? tspdt.get(m[1]) : undefined;
+  const s = lbSlug(lb);
+  return s ? tspdt.get(s) : undefined;
+}
+// Unseen and Watchlist, from seen.json (Letterboxd slugs; see sync_seen.py). Unseen hides the films
+// I've watched; Watchlist keeps only those on my Letterboxd watchlist. Both are empty until it loads.
+let watched = new Set(), watchlist = new Set(), seenLoaded = false;
+function inSeen(lb){
+  const s = lbSlug(lb);
+  return !(state.hideWatched && watched.has(s)) && (!state.watchlistOnly || watchlist.has(s));
 }
 // TSPDT filter: when on, keep only films on the list.
 function inTspdt(lb){ return !state.tspdtOnly || tspdtRank(lb) !== undefined; }
@@ -544,7 +552,7 @@ function filmsFor(name, date){
   const a = [...m.values()];
   a.forEach(f => f.times = [...new Set(f.times)].sort());
   a.sort((x,y) => (x.times[0]||"").localeCompare(y.times[0]||"") || x.title.localeCompare(y.title));
-  return a.filter(f => yearInBuckets(f.year) && inTspdt(f.lb));
+  return a.filter(f => yearInBuckets(f.year) && inTspdt(f.lb) && inSeen(f.lb));
 }
 function titleLink(title, lb){
   return lb ? `<a href="${esc(lb)}" target="_blank" rel="noopener">${esc(title)}</a>` : esc(title);
@@ -578,15 +586,16 @@ function renderCinema(){
           </div><div class="times">${f.times.map(t => `<span>${lifTag(date, c.name, t, f.title)}${esc(t)}</span>`).join("")}</div></div>`;
       }
     }
-    if((state.lifOnly || _qWords.length) && !any) continue;  // only cinemas hosting their screenings
+    if(!any) continue;  // a cinema with no screenings left under the filters drops out of this view
     html += `<div class="csec"><div class="chead">
       <span class="cname">${cinemaLink(c.name)}</span>
       <span class="caddr">${addressLink(c)}</span></div>`;
-    html += any ? body : `<div class="empty">No screenings.</div>`;
+    html += body;
     html += `</div>`;
   }
-  if(!html && _qWords.length) return noMatch();
-  return html || `<div class="empty">${state.lifOnly ? "No Lost in Frenchlation screenings on these days." : "No cinema selected."}</div>`;
+  if(html) return html;
+  if(_qWords.length) return noMatch();
+  return `<div class="empty">${!state.active.size ? "No cinema selected." : state.lifOnly ? "No Lost in Frenchlation screenings on these days." : "No screenings."}</div>`;
 }
 
 function renderDay(){
@@ -628,7 +637,7 @@ function renderMovies(){
     if(state.minTime && r.time < state.minTime) continue;
     if(!inLif(r) || !inSearch(r)) continue;
     if(!yearInBuckets(r["Year"])) continue;
-    if(!inTspdt(r["Letterboxd"])) continue;
+    if(!inTspdt(r["Letterboxd"]) || !inSeen(r["Letterboxd"])) continue;
     const k = r["Movie title"] + "|" + r["Year"];
     let mv = movies.get(k);
     if(!mv){ mv = {title:r["Movie title"], orig:r["Original title"], director:r["Director"], year:r["Year"], country:r["Country"],
@@ -778,7 +787,8 @@ function renderControls(){
   const pillBox = c.querySelector(".pillbox"), dayBox = c.querySelector(".daybox");
   const pillSig = [data.cinemas.map(x => x.name).join(","), [...state.active].sort().join(","),
     [...state.yearBuckets].sort().join(","), state.yearOpen, state.pillsOpen,
-    state.tspdtOnly, tspdt.size, state.lifOnly, lifMap.size].join("|");
+    state.tspdtOnly, tspdt.size, state.hideWatched, state.watchlistOnly, seenLoaded,
+    state.lifOnly].join("|");
   const daySig = [state.view, data.dates.join(","), [...state.daysActive].sort().join(","), state.daysOpen,
     tspdt.size].join("|");
 
@@ -789,15 +799,20 @@ function renderControls(){
   // once Year is expanded.
   const allYears = state.yearBuckets.size === YEAR_BUCKETS.length;
   // TSPDT toggle: pink while it limits the view to list films.
-  const tspdtPill = tspdt.size ? `<button class="pill all${state.tspdtOnly ? " on" : ""}" data-tspdt="1" aria-pressed="${state.tspdtOnly}"` +
-    ` title="Only films in TSPDT's 1,000 Greatest Films, with their rank">TSPDT</button>` : "";
+  // Unseen and Watchlist follow it, as on Streaming.
+  const tspdtPill = (tspdt.size ? `<button class="pill all${state.tspdtOnly ? " on" : ""}" data-tspdt="1" aria-pressed="${state.tspdtOnly}"` +
+    ` title="Only films in TSPDT's 1,000 Greatest Films, with their rank">TSPDT</button>` : "") +
+    (seenLoaded ? `<button class="pill all${state.hideWatched ? " on" : ""}" data-watched="1" aria-pressed="${state.hideWatched}"` +
+    ` title="Hide films I've watched on Letterboxd">Unseen</button>` : "") +
+    (seenLoaded ? `<button class="pill all${state.watchlistOnly ? " on" : ""}" data-watchlist="1" aria-pressed="${state.watchlistOnly}"` +
+    ` title="Only films on my Letterboxd watchlist">Watchlist</button>` : "");
   const yearBtn = `<button class="pill all${allYears ? " on" : ""}" data-yall="1">Year</button>` +
     (state.yearOpen ? YEAR_BUCKETS.map(b =>
       `<button class="pill${state.yearBuckets.has(b.k) ? "" : " off"}" data-y="${b.k}">${esc(b.label)}</button>`).join("") : tspdtPill);
   const cinemaPills = state.pillsOpen ? data.cinemas.map(x =>
     `<button class="pill${state.active.has(x.name) ? "" : " off"}" data-n="${esc(x.name)}">${esc(x.name)}</button>`).join("") +
-    (lifMap.size ? `<button class="pill lifpill${state.lifOnly ? " on" : ""}" data-lif="1" aria-pressed="${state.lifOnly}"` +
-      ` title="Only Lost in Frenchlation screenings: French films with English subtitles">Lost in Frenchlation</button>` : "") : "";
+    (`<button class="pill lifpill${state.lifOnly ? " on" : ""}" data-lif="1" aria-pressed="${state.lifOnly}"` +
+      ` title="Only Lost in Frenchlation screenings: French films with English subtitles">Lost in Frenchlation</button>`) : "";
   let html = `<div class="pills">` +
     `<button class="pill all${allActive ? " on" : ""}" data-all="1">Cinemas</button>` +
     cinemaPills + (state.pillsOpen ? "" : yearBtn) + `</div>`;
@@ -880,6 +895,10 @@ function renderControls(){
     if(!state.tspdtOnly && state.movieSort === "tspdt") state.movieSort = "title";
     renderAll();
   };
+  const watchedBtn = c.querySelector("[data-watched]");
+  if(watchedBtn) watchedBtn.onclick = () => { state.hideWatched = !state.hideWatched; renderAll(); };
+  const watchlistBtn = c.querySelector("[data-watchlist]");
+  if(watchlistBtn) watchlistBtn.onclick = () => { state.watchlistOnly = !state.watchlistOnly; renderAll(); };
   const sortBox = c.querySelector("#movieSort");
   if(sortBox) sortBox.onchange = () => {
     state.movieSort = sortBox.value;
@@ -990,6 +1009,16 @@ async function loadTspdt(){
     tspdt = new Map(t.slugs.map((s, i) => [s, i + 1]));
     tspdtEdition = t.edition || "";
   } catch(e) { return; }  // no list: no badges, no filter button
+  if(data && data.rows.length) renderAll();
+}
+
+async function loadSeen(){
+  try {
+    const w = await (await fetch("seen.json", {cache:"no-store"})).json();
+    watched = new Set(w.watched || []);
+    watchlist = new Set(w.watchlist || []);
+    seenLoaded = true;  // the pills show even when nothing this week is on the list
+  } catch(e) { return; }  // no file: no Unseen or Watchlist pills
   if(data && data.rows.length) renderAll();
 }
 
@@ -1117,6 +1146,7 @@ _lb.addEventListener("click", closeLightbox);
 document.addEventListener("keydown", (e) => { if(e.key === "Escape") closeLightbox(); });
 
 loadTspdt();
+loadSeen();
 load();
 </script>
 </body>

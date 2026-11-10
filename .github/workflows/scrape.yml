@@ -42,17 +42,26 @@ jobs:
           print(len(app._state['rows']), 'showtimes')
           "
 
+      # Which of the week's films I've watched or want to watch, from the Streaming site's
+      # published lists, for the Unseen and Watchlist pills. Not worth failing the scrape over.
+      - name: Match watched films and watchlist
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: python3 sync_seen.py
+
       - name: Commit refreshed data
         if: github.event_name != 'push'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add ugc.csv data.json
+          git add ugc.csv data.json $(ls seen.json tmdb_ids.json 2>/dev/null)
           git diff --cached --quiet || git commit -m "Update showtimes $(date +%F)"
           git push
 
       - name: Prepare site
-        run: mkdir _site && cp index.html data.json tspdt.json lif.png favicon.svg og.png _site/
+        run: |
+          mkdir _site && cp index.html data.json tspdt.json lif.png favicon.svg og.png _site/
+          if [ -f seen.json ]; then cp seen.json _site/; fi
 
       - uses: actions/upload-pages-artifact@v3
         with:
