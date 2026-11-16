@@ -165,6 +165,11 @@ COUNTRY_ABBR = {"United Kingdom": "UK"}
 COUNTRY_OVERRIDES = {
     ("la belle et la bête", "1946"): "France",  # AlloCiné lists "Luxembourg, France"
     ("kyua", "1997"): "Japan",  # Cure; AlloCiné lists "USA"
+    ("the terminator", "1984"): "USA",
+    ("terminator", "1984"): "USA",
+    ("terminator 2: judgment day", "1991"): "USA",
+    ("terminator 2 : judgment day", "1991"): "USA",
+    ("terminator 2", "1991"): "USA",
 }
 
 
