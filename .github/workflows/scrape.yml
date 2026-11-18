@@ -60,7 +60,7 @@ jobs:
 
       - name: Prepare site
         run: |
-          mkdir _site && cp index.html data.json tspdt.json lif.png favicon.svg og.png _site/
+          mkdir _site && cp index.html data.json tspdt.json lif.png favicon.svg apple-touch-icon.png og.png _site/
           if [ -f seen.json ]; then cp seen.json _site/; fi
 
       - uses: actions/upload-pages-artifact@v3
