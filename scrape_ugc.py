@@ -334,8 +334,12 @@ def tmdb_details(movie_id, key):
 
 def name_tokens(s):
     """Lowercase, accent-stripped word tokens (len > 2) of a name string."""
-    s = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode()
-    return {t for t in re.split(r"[^a-z0-9]+", s.lower()) if len(t) > 2}
+    # Drop accents, then split on any other non-alphanumeric character (so a
+    # curly apostrophe separates words like a straight one: "L’Année" -> annee).
+    s = "".join(c for c in unicodedata.normalize("NFKD", s or "")
+                if not unicodedata.combining(c))
+    words = (w.encode("ascii", "ignore").decode() for w in re.split(r"[\W_]+", s.lower()))
+    return {t for t in words if len(t) > 2}
 
 
 def directors_match(a, b):
