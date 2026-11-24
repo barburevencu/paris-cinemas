@@ -218,15 +218,77 @@ def is_excluded(cinema_name, *titles):
     return bool(keys & EXCLUDE)
 
 
+# Some screenings come through AlloCiné with "movie": null: the film exists in
+# AlloCiné's database but has no public page, so allocine.fr hides the session
+# (e.g. the Centre Pompidou programme at mk2 Bibliothèque). Their mk2 ticket
+# link still carries mk2's cinema and session ids, and mk2's own API returns
+# the film for a session.
+MK2_SESSION_API = "https://prod-paris-cf.api.mk2.com/sessions/{cinema}/{session}"
+_MK2_TICKET_RE = re.compile(r"mk2\.com/.*[?&]cinemaId=(\d+)&sessionId=(\d+)")
+_mk2_films = {}  # mk2 (cinema id, session id) -> film dict or None, per run
+
+
+def mk2_session_ids(result):
+    """(mk2 cinema id, session id) pairs from a result's ticket links."""
+    pairs = []
+    for group in (result.get("showtimes") or {}).values():
+        for st in group if isinstance(group, list) else []:
+            for t in ((st.get("data") or {}).get("ticketing") or []):
+                for u in t.get("urls") or []:
+                    m = _MK2_TICKET_RE.search(u)
+                    if m:
+                        pairs.append(m.groups())
+    return pairs
+
+
+def mk2_film(result):
+    """The film behind a title-less mk2 result, from mk2's session API.
+
+    Returns {"title", "director", "runtime", "poster"} or None. Tries each of
+    the result's sessions until one answers.
+    """
+    for ids in mk2_session_ids(result):
+        if ids not in _mk2_films:
+            url = MK2_SESSION_API.format(cinema=ids[0], session=ids[1])
+            req = urllib.request.Request(
+                url, headers={"User-Agent": HEADERS["User-Agent"], "X-Api-Version": "3.0"})
+            film = None
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    film = json.loads(resp.read().decode("utf-8")).get("film")
+            except (urllib.error.URLError, ValueError) as e:
+                print(f"  ! mk2 session {ids[1]}: {e}", file=sys.stderr)
+            _mk2_films[ids] = film
+        film = _mk2_films[ids]
+        if film and film.get("title"):
+            directors = [c.get("displayName") for c in film.get("cast") or []
+                         if c.get("personType") == "Director" and c.get("displayName")]
+            return {
+                "title": film["title"].strip(),
+                "director": ", ".join(directors),
+                "runtime": str(film.get("runTime") or ""),
+                "poster": film.get("graphicUrl") or "",
+            }
+    return None
+
+
 def collect_rows(data, cinema_name, date_str):
     rows = []
     for result in (data.get("results") or []):
         movie = result.get("movie") or {}
         original = movie.get("originalTitle") or movie.get("title") or ""
         french = movie.get("title") or ""
+        fallback = {}  # mk2's runtime and poster, used when TMDB has none
+        mk2 = None
+        if not original:
+            mk2 = mk2_film(result)
+            if mk2 is None:
+                continue  # no film anywhere: allocine.fr hides it too
+            original = french = mk2["title"]
+            fallback = {"_runtime": mk2["runtime"], "_poster": mk2["poster"]}
         if is_excluded(cinema_name, original, french):
             continue
-        director = get_director(movie)
+        director = get_director(movie) or (mk2["director"] if mk2 else "")
         year = get_year(movie)
         country = get_country(movie)
         for time in iter_showtimes(result):
@@ -243,6 +305,7 @@ def collect_rows(data, cinema_name, date_str):
                     # Internal-only: extra title used for TMDB matching.
                     # Not written to the CSV (write_csv lists the output fields).
                     "_french_title": french,
+                    **fallback,
                 }
             )
     return rows
@@ -527,8 +590,8 @@ def enrich_rows(rows, key, cache=None):
         if english:
             row["Movie title"] = english
         row["Letterboxd"] = letterboxd
-        row["Poster"] = poster
-        row["Runtime"] = runtime
+        row["Poster"] = poster or row.get("_poster", "")
+        row["Runtime"] = runtime or row.get("_runtime", "")
         row["Genres"] = genres
         row["Language"] = lang
     if hits:
