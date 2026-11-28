@@ -565,7 +565,10 @@ function posterImg(f){
   // No loading="lazy": the view's HTML is rebuilt on every filter change, and
   // lazy-created <img>s blank for a frame before repainting cached posters
   // (a flicker). Eager + async decode lets cached thumbnails repaint at once.
-  return `<img class="poster" src="${esc(f.poster)}" alt="" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className:'poster'}))">`;
+  // Letterboxd's posters come at 600×900 (~85 KB each); a 46px thumbnail needs the 150×225 size
+  // (~20 KB), still sharp on a 3× screen. The lightbox opens the full size from data-full.
+  const thumb = f.poster.replace(/-0-600-0-900-crop/, "-0-150-0-225-crop");
+  return `<img class="poster" src="${esc(thumb)}" data-full="${esc(f.poster)}" alt="" decoding="async" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className:'poster'}))">`;
 }
 
 function renderCinema(){
@@ -1034,7 +1037,8 @@ function dropPast(){
 }
 async function load(){
   let r;
-  try { r = await fetch("data.json", {cache:"no-store"}); }
+  // no-cache, not no-store: the browser always checks for a newer copy, but downloads it again only when it changed.
+  try { r = await fetch("data.json", {cache:"no-cache"}); }
   catch(e) { setView(`<div class="note">Could not load data.json.</div>`); return; }
   data = await r.json();
   dropPast();
@@ -1150,7 +1154,7 @@ const _lb = document.getElementById("lightbox"), _lbImg = _lb.querySelector("img
 function closeLightbox(){ _lb.classList.remove("open"); _lb.setAttribute("aria-hidden", "true"); _lbImg.removeAttribute("src"); }
 document.getElementById("view").addEventListener("click", (e) => {
   const img = e.target.closest("img.poster"); if(!img) return;
-  _lbImg.src = img.currentSrc || img.src;
+  _lbImg.src = img.dataset.full || img.currentSrc || img.src;
   _lb.classList.add("open"); _lb.setAttribute("aria-hidden", "false");
 });
 _lb.addEventListener("click", closeLightbox);
